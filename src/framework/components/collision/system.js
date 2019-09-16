@@ -101,7 +101,8 @@ Object.assign(pc, function () {
                 axis: src.data.axis,
                 height: src.data.height,
                 asset: src.data.asset,
-                model: src.data.model
+                model: src.data.model,
+                margin: src.data.margin
             };
 
             return this.system.addComponent(clone, data);
@@ -403,6 +404,97 @@ Object.assign(pc, function () {
         }
     });
 
+    // Convex Mesh Compound Collision System
+    var CollisionConvexMeshCompoundSystemImpl = function (system) {
+        CollisionSystemImpl.call(this, system);
+    };
+    CollisionConvexMeshCompoundSystemImpl.prototype = Object.create(CollisionSystemImpl.prototype);
+    CollisionConvexMeshCompoundSystemImpl.prototype.constructor = CollisionConvexMeshCompoundSystemImpl;
+
+    Object.assign(CollisionConvexMeshCompoundSystemImpl.prototype, CollisionMeshSystemImpl.prototype, {
+        // Based on https://forum.playcanvas.com/t/script-that-allows-mesh-colliders-to-collide-with-each-other/7150 
+        createPhysicalShape: function (entity, data) {
+            if (typeof Ammo !== 'undefined' && data.model) {
+                var model = data.model;
+
+                var hasMargin = typeof data.margin !== 'undefined';
+                var margin = data.margin;
+                var shape = new Ammo.btCompoundShape();
+
+                if (hasMargin) {
+                    shape.setMargin(margin);
+                }
+
+                var i, j, k;
+                for (i = 0; i < model.meshInstances.length; i++) {
+                    var meshInstance = model.meshInstances[i];
+                    var mesh = meshInstance.mesh;
+                    var ib = mesh.indexBuffer[pc.RENDERSTYLE_SOLID];
+                    var vb = mesh.vertexBuffer;
+
+                    var format = vb.getFormat();
+                    var stride = format.size / 4;
+                    var positions;
+                    for (j = 0; j < format.elements.length; j++) {
+                        var element = format.elements[j];
+                        if (element.name === pc.SEMANTIC_POSITION) {
+                            positions = new Float32Array(vb.lock(), element.offset);
+                        }
+                    }
+
+                    var indices = new Uint16Array(ib.lock());
+                    var numTriangles = mesh.primitive[0].count / 3;
+
+                    var convexHullShape = new Ammo.btConvexHullShape();
+                    if (hasMargin) {
+                        convexHullShape.setMargin(margin);
+                    }
+
+                    var seen = {};
+                    var p = new Ammo.btVector3();
+                    var base = mesh.primitive[0].base;
+                    for (j = 0; j < numTriangles; j++) {
+                        for(k=0; k < 3; k++) {
+                            var idx = indices[base + j * 3 + k] * stride;
+                            if(!seen.hasOwnProperty[idx]) {
+                                seen[idx] = true;
+                                p.setValue(positions[idx], positions[idx + 1], positions[idx + 2]);
+                                convexHullShape.addPoint(p, true);
+                            }
+                        }   
+                    }
+
+                    var wtm = meshInstance.node.getWorldTransform();
+                    var scl = wtm.getScale();
+                    
+                    convexHullShape.setLocalScaling(new Ammo.btVector3(scl.x, scl.y, scl.z));
+
+                    var pos = meshInstance.node.getPosition();
+                    var rot = meshInstance.node.getRotation();
+
+                    var transform = new Ammo.btTransform();
+                    transform.setIdentity();
+                    transform.getOrigin().setValue(pos.x, pos.y, pos.z);
+
+                    var ammoQuat = new Ammo.btQuaternion();
+                    ammoQuat.setValue(rot.x, rot.y, rot.z, rot.w);
+                    transform.setRotation(ammoQuat);
+
+                    shape.addChildShape(transform, convexHullShape);
+                }
+
+                var entityTransform = entity.getWorldTransform();
+                var scale = entityTransform.getScale();
+                var vec = new Ammo.btVector3();
+                vec.setValue(scale.x, scale.y, scale.z);
+                shape.setLocalScaling(vec);
+
+                return shape;
+            }
+            return undefined;
+        }
+    });
+
     /**
      * @constructor
      * @name pc.CollisionComponentSystem
@@ -444,7 +536,7 @@ Object.assign(pc, function () {
         },
 
         initializeComponentData: function (component, _data, properties) {
-            properties = ['type', 'halfExtents', 'radius', 'axis', 'height', 'shape', 'model', 'asset', 'enabled'];
+            properties = ['type', 'halfExtents', 'radius', 'axis', 'height', 'shape', 'model', 'asset', 'margin', 'enabled'];
 
             // duplicate the input data because we are modifying it
             var data = {};
@@ -509,6 +601,9 @@ Object.assign(pc, function () {
                         break;
                     case 'mesh':
                         impl = new CollisionMeshSystemImpl(this);
+                        break;
+                    case 'convex-mesh-compound':
+                        impl = new CollisionConvexMeshCompoundSystemImpl(this);
                         break;
                     default:
                         // #ifdef DEBUG

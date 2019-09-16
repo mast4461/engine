@@ -7,7 +7,8 @@ Object.assign(pc, function () {
         this.axis = 1;
         this.height = 2;
         this.asset = null;
-
+        this.margin = 0.04;
+        
         // Non-serialized properties
         this.shape = null;
         this.model = null;

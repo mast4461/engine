@@ -180,7 +180,7 @@ Object.assign(pc, function () {
                 }
             }
 
-            if (this.data.initialized && this.data.type === 'mesh') {
+            if (this.data.initialized && this.data.type.includes('mesh')) {
                 if (!newValue) {
                     // if asset is null set model to null
                     // so that it's going to be removed from the simulation
@@ -191,11 +191,12 @@ Object.assign(pc, function () {
         },
 
         onSetModel: function (name, oldValue, newValue) {
-            if (this.data.initialized && this.data.type === 'mesh') {
+            var t = this.data.type;
+            if (this.data.initialized && (t === 'mesh' || t === 'convex-mesh-compound')) {
                 // recreate physical shapes skipping loading the model
                 // from the 'asset' as the model passed in newValue might
                 // have been created procedurally
-                this.system.implementations.mesh.doRecreatePhysicalShape(this);
+                this.system.implementations[t].doRecreatePhysicalShape(this);
             }
         },
 
@@ -207,7 +208,7 @@ Object.assign(pc, function () {
         },
 
         onEnable: function () {
-            if (this.data.type === 'mesh' && this.data.asset && this.data.initialized) {
+            if (this.data.type.includes('mesh') && this.data.asset && this.data.initialized) {
                 var asset = this.system.app.assets.get(this.data.asset);
                 // recreate the collision shape if the model asset is not loaded
                 // or the shape does not exist
