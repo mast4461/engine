@@ -9,7 +9,9 @@ Object.assign(pc, function () {
      * // Create a new model
      * var model = new pc.Model();
      * @property {pc.GraphNode} graph The root node of the model's graph node hierarchy.
-     * @property {pc.MeshInstance[]} meshInstances An array of meshInstances contained in this model.
+     * @property {pc.MeshInstance[]} meshInstances An array of MeshInstances contained in this model.
+     * @property {pc.SkinInstance[]} skinInstances An array of SkinInstances contained in this model.
+     * @property {pc.MorphInstance[]} morphInstances An array of MorphInstances contained in this model.
      */
     var Model = function Model() {
         this.graph = null;
@@ -21,6 +23,10 @@ Object.assign(pc, function () {
         this.lights = [];
 
         this._shadersVersion = 0;
+
+        // used by the model component to flag that this
+        // model has been assigned
+        this._immutable = false;
     };
 
     Object.assign(Model.prototype, {
